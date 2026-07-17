@@ -80,6 +80,10 @@ python tools/process_assets.py
 
 ## Controls
 
+- The game starts on a menu with `NEW GAME`, `ADD NEW PLAYER`, `HIGH SCORE`, and `EXIT`.
+- `ADD NEW PLAYER` lets you type a player name and starts a fresh game.
+- `HIGH SCORE` shows the best completed-level score for each player.
+- If the same player earns a better score, the old score is replaced.
 - Click an arrow in the tray to place it in the next empty answer slot.
 - Drag an arrow from the tray to the answer strip to place it.
 - Click a filled answer slot to remove that arrow.
@@ -88,6 +92,14 @@ python tools/process_assets.py
 - Press `GO` to check, or fill all slots to check automatically.
 - Resize or maximize the window for a larger display.
 - Press `F11` to toggle fullscreen. Press `Esc` to leave fullscreen.
+
+### Keyboard Shortcuts (during a level)
+
+- `Up` / `Down` / `Left` / `Right` arrow keys: place that direction in the next empty answer slot, same as clicking the tray button.
+- `Backspace` or `Delete`: remove the last placed arrow (same as the undo button).
+- `Esc`: open the pause menu with `NEW GAME`, `CANCEL`, and `EXIT`. Press `Esc` again to `CANCEL` and resume. If the window is in fullscreen, the first `Esc` press leaves fullscreen instead.
+
+Scores are saved locally in `high_scores.json`. This file is ignored by Git because it is player data.
 
 ## Add Or Reorder Levels
 

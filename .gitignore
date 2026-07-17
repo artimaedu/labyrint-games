@@ -23,6 +23,9 @@ build/
 dist/
 *.egg-info/
 
+# Local player data
+high_scores.json
+
 # OS and editor files
 .DS_Store
 Thumbs.db

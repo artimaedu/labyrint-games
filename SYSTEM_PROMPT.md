@@ -26,6 +26,12 @@ treasure, and then recreate that path by dragging directional arrows.
   fallback (helps younger kids with less precise motor control).
 - Include an "undo last arrow" button and a "clear all" button, both large and
   icon-based (no text required, since some players can't read yet).
+- Keyboard shortcuts (optional alternative to mouse/touch, useful on desktop):
+  - Arrow keys (Up/Down/Left/Right) place that direction in the next empty slot.
+  - Backspace or Delete removes the last placed arrow.
+  - Esc opens a simple pause menu with three choices: start a New Game, Exit
+    the game, or Cancel (resume where they left off). Esc again from the pause
+    menu also cancels/resumes.
 
 ## LEVEL PROGRESSION (single track, everyone plays through all of it)
 There is no upfront age picker. Every player starts at Level 1 and advances

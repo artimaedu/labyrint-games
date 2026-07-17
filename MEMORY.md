@@ -35,6 +35,10 @@ python main.py
 
 ## Current Features
 
+- Start menu with `NEW GAME`, `ADD NEW PLAYER`, `HIGH SCORE`, and `EXIT`.
+- Player names are typed in-game and saved locally.
+- High scores are stored in `high_scores.json`, one best completed-level score per player.
+- If the same player gets a better score, the old score is replaced.
 - Click-to-place and drag-to-place arrows.
 - Answer strip with removable slots.
 - Undo button removes the last arrow.
@@ -44,6 +48,7 @@ python main.py
 - Incorrect answer gives a gentle retry message.
 - Window is resizable and attempts to maximize.
 - `F11` toggles fullscreen; `Esc` exits fullscreen.
+- Keyboard shortcuts during a level: arrow keys place directions, `Backspace`/`Delete` undoes the last arrow, `Esc` opens a pause menu (`NEW GAME` / `CANCEL` / `EXIT`).
 - Works on Windows and should run on Linux with Python 3 and Pygame.
 
 ## Asset Notes
@@ -59,4 +64,5 @@ python tools/process_assets.py
 ## Git Notes
 
 - `.gitignore` excludes `.venv/`, `__pycache__/`, `*.pyc`, environment files, caches, and build outputs.
+- `.gitignore` also excludes `high_scores.json` because it is local player data.
 - Initial commit was `1d9e5de first commit`.

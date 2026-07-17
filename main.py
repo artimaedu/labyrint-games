@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import random
 import sys
@@ -25,6 +26,14 @@ from ui import ARROW_COLORS, Button, answer_slot_rects, draw_arrow, draw_round_r
 SCREEN_SIZE = (1024, 768)
 FPS = 60
 ASSET_DIR = Path(__file__).parent / "assets"
+SCORE_FILE = Path(__file__).parent / "high_scores.json"
+
+DIRECTION_KEYS = {
+    pygame.K_UP: "U",
+    pygame.K_DOWN: "D",
+    pygame.K_LEFT: "L",
+    pygame.K_RIGHT: "R",
+}
 
 BG = (167, 224, 255)
 PANEL = (255, 247, 212)
@@ -94,6 +103,7 @@ class Game:
         self.render_scale = 1
         self.fullscreen = False
         self.clock = pygame.time.Clock()
+        self.title_font = pygame.font.SysFont("arialrounded", 58, bold=True) or pygame.font.Font(None, 58)
         self.font = pygame.font.SysFont("arialrounded", 32, bold=True) or pygame.font.Font(None, 32)
         self.small_font = pygame.font.SysFont("arialrounded", 24, bold=True) or pygame.font.Font(None, 24)
 
@@ -112,6 +122,11 @@ class Game:
         self.drag_start = None
         self.sound_on = True
         self.confetti = []
+        self.state = "menu"
+        self.current_player = "Player"
+        self.name_input = ""
+        self.completed_this_run = 0
+        self.high_scores = load_high_scores()
         self.load_level(0)
         self.maximize_window()
 
@@ -175,8 +190,33 @@ class Game:
         return int(x), int(y)
 
     def handle_event(self, event):
+        if self.state == "menu":
+            self.handle_menu_event(event)
+            return
+        if self.state == "name":
+            self.handle_name_event(event)
+            return
+        if self.state == "scores":
+            self.handle_scores_event(event)
+            return
+        if self.state == "pause":
+            self.handle_pause_event(event)
+            return
+
         if self.celebrating:
             return
+
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.state = "pause"
+                return
+            if event.key in DIRECTION_KEYS:
+                self.place_arrow(DIRECTION_KEYS[event.key])
+                return
+            if event.key in (pygame.K_BACKSPACE, pygame.K_DELETE):
+                if self.answer:
+                    self.answer.pop()
+                return
 
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
             pos = event.pos
@@ -215,6 +255,89 @@ class Game:
             self.dragging = None
             self.drag_start = None
 
+    def handle_menu_event(self, event):
+        if event.type != pygame.MOUSEBUTTONDOWN or event.button != 1:
+            return
+        pos = event.pos
+        buttons = self.menu_buttons()
+        if buttons["new_game"].collidepoint(pos):
+            self.start_new_game()
+        elif buttons["add_player"].collidepoint(pos):
+            self.name_input = "" if self.current_player == "Player" else self.current_player
+            self.state = "name"
+        elif buttons["high_score"].collidepoint(pos):
+            self.state = "scores"
+        elif buttons["exit"].collidepoint(pos):
+            pygame.quit()
+            sys.exit()
+
+    def handle_name_event(self, event):
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.state = "menu"
+                return
+            if event.key == pygame.K_BACKSPACE:
+                self.name_input = self.name_input[:-1]
+                return
+            if event.key == pygame.K_RETURN:
+                self.save_player_name()
+                return
+            typed = getattr(event, "unicode", "")
+            if typed and len(self.name_input) < 14:
+                if typed.isalnum() or typed in " -_":
+                    self.name_input += typed
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = event.pos
+            buttons = self.name_buttons()
+            if buttons["start"].collidepoint(pos):
+                self.save_player_name()
+            elif buttons["back"].collidepoint(pos):
+                self.state = "menu"
+
+    def handle_scores_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.state = "menu"
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.back_button().collidepoint(event.pos):
+                self.state = "menu"
+
+    def handle_pause_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.state = "game"
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = event.pos
+            buttons = self.pause_buttons()
+            if buttons["new_game"].collidepoint(pos):
+                self.start_new_game()
+            elif buttons["cancel"].collidepoint(pos):
+                self.state = "game"
+            elif buttons["exit"].collidepoint(pos):
+                pygame.quit()
+                sys.exit()
+
+    def save_player_name(self):
+        name = self.name_input.strip() or "Player"
+        self.current_player = name[:14]
+        if self.current_player not in self.high_scores:
+            self.high_scores[self.current_player] = 0
+            save_high_scores(self.high_scores)
+        self.start_new_game()
+
+    def start_new_game(self):
+        self.completed_this_run = 0
+        self.load_level(0)
+        self.state = "game"
+
+    def record_score(self, score):
+        name = self.current_player.strip() or "Player"
+        if score > self.high_scores.get(name, 0):
+            self.high_scores[name] = score
+            save_high_scores(self.high_scores)
+
     def place_arrow(self, direction):
         if len(self.answer) >= len(self.correct_answer):
             return
@@ -239,6 +362,8 @@ class Game:
         self.celebrating = True
         self.celebration_start = pygame.time.get_ticks()
         self.walk_cells = list(self.path_cells)
+        self.completed_this_run = max(self.completed_this_run, self.level_index + 1)
+        self.record_score(self.completed_this_run)
         self.confetti = [
             [random.randint(40, SCREEN_SIZE[0] - 40), random.randint(-260, -20), random.choice(list(ARROW_COLORS.values())), random.uniform(110, 220)]
             for _ in range(130)
@@ -253,7 +378,12 @@ class Game:
             for bit in self.confetti:
                 bit[1] += bit[3] * dt
             if now - self.celebration_start > 2400:
-                self.load_level(self.level_index + 1)
+                if self.level_index + 1 >= len(LEVELS):
+                    self.celebrating = False
+                    self.state = "scores"
+                    self.message = ""
+                else:
+                    self.load_level(self.level_index + 1)
 
     def maze_rect(self):
         return pygame.Rect(84, 92, 560, 430)
@@ -302,17 +432,50 @@ class Game:
     def go_button(self):
         return Button((756, 654, 110, 76), "go", (82, 196, 126))
 
+    def menu_buttons(self):
+        return {
+            "new_game": pygame.Rect(332, 248, 360, 72),
+            "add_player": pygame.Rect(332, 340, 360, 72),
+            "high_score": pygame.Rect(332, 432, 360, 72),
+            "exit": pygame.Rect(332, 524, 360, 72),
+        }
+
+    def pause_buttons(self):
+        return {
+            "new_game": pygame.Rect(332, 300, 360, 72),
+            "cancel": pygame.Rect(332, 392, 360, 72),
+            "exit": pygame.Rect(332, 484, 360, 72),
+        }
+
+    def name_buttons(self):
+        return {
+            "start": pygame.Rect(344, 478, 336, 74),
+            "back": pygame.Rect(392, 574, 240, 62),
+        }
+
+    def back_button(self):
+        return pygame.Rect(392, 634, 240, 62)
+
     def draw(self):
         self.screen.fill(BG)
         self.draw_clouds()
-        self.draw_progress()
-        self.draw_maze()
-        self.draw_side_panel()
-        self.draw_answer_strip()
-        self.draw_tray()
-        self.draw_confetti()
-        self.draw_message()
-        self.draw_dragging()
+        if self.state in ("game", "pause"):
+            self.draw_progress()
+            self.draw_maze()
+            self.draw_side_panel()
+            self.draw_answer_strip()
+            self.draw_tray()
+            self.draw_confetti()
+            self.draw_message()
+            self.draw_dragging()
+            if self.state == "pause":
+                self.draw_pause_overlay()
+        elif self.state == "name":
+            self.draw_name_screen()
+        elif self.state == "scores":
+            self.draw_high_scores()
+        else:
+            self.draw_menu()
         self.present()
 
     def present(self):
@@ -345,6 +508,73 @@ class Game:
             y = 42
             color = (255, 185, 64) if index <= self.level_index else (255, 255, 255)
             draw_star(self.screen, (x, y), 15, color)
+
+    def draw_menu(self):
+        title = self.title_font.render("Arrow Path", True, PURPLE)
+        subtitle = self.font.render("to Treasure", True, (255, 111, 145))
+        self.screen.blit(title, title.get_rect(center=(SCREEN_SIZE[0] // 2, 130)))
+        self.screen.blit(subtitle, subtitle.get_rect(center=(SCREEN_SIZE[0] // 2, 184)))
+
+        player = self.small_font.render(f"Player: {self.current_player}", True, PURPLE)
+        self.screen.blit(player, player.get_rect(center=(SCREEN_SIZE[0] // 2, 222)))
+
+        labels = {
+            "new_game": "NEW GAME",
+            "add_player": "ADD NEW PLAYER",
+            "high_score": "HIGH SCORE",
+            "exit": "EXIT",
+        }
+        colors = {
+            "new_game": (82, 196, 126),
+            "add_player": (255, 185, 64),
+            "high_score": (91, 141, 239),
+            "exit": (255, 111, 145),
+        }
+        for key, rect in self.menu_buttons().items():
+            draw_menu_button(self.screen, self.font, rect, labels[key], colors[key])
+
+        kid_rect = pygame.Rect(128, 300, 150, 230)
+        treasure_rect = pygame.Rect(748, 318, 168, 140)
+        blit_fit(self.screen, self.character, kid_rect)
+        blit_fit(self.screen, self.treasure, treasure_rect)
+
+    def draw_name_screen(self):
+        title = self.title_font.render("New Player", True, PURPLE)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_SIZE[0] // 2, 150)))
+        hint = self.small_font.render("Type a name, then press Enter or Start", True, PURPLE)
+        self.screen.blit(hint, hint.get_rect(center=(SCREEN_SIZE[0] // 2, 214)))
+
+        input_rect = pygame.Rect(284, 288, 456, 82)
+        draw_round_rect(self.screen, input_rect, WHITE, radius=24, border=6, border_color=(255, 236, 128))
+        shown_name = self.name_input or "Player name"
+        color = PURPLE if self.name_input else (145, 132, 170)
+        text = self.font.render(shown_name, True, color)
+        self.screen.blit(text, text.get_rect(center=input_rect.center))
+
+        buttons = self.name_buttons()
+        draw_menu_button(self.screen, self.font, buttons["start"], "START GAME", (82, 196, 126))
+        draw_menu_button(self.screen, self.small_font, buttons["back"], "BACK", (255, 185, 64))
+
+    def draw_high_scores(self):
+        title = self.title_font.render("High Score", True, PURPLE)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_SIZE[0] // 2, 118)))
+        panel = pygame.Rect(252, 174, 520, 430)
+        draw_round_rect(self.screen, panel, PANEL, radius=34, border=6, border_color=WHITE)
+
+        scores = sorted(self.high_scores.items(), key=lambda item: (-item[1], item[0].lower()))[:8]
+        if not scores:
+            empty = self.font.render("No scores yet", True, PURPLE)
+            self.screen.blit(empty, empty.get_rect(center=panel.center))
+        for index, (name, score) in enumerate(scores):
+            y = panel.y + 54 + index * 44
+            rank = self.small_font.render(f"{index + 1}.", True, PURPLE)
+            player = self.small_font.render(name, True, PURPLE)
+            points = self.small_font.render(f"{score}/{len(LEVELS)}", True, (82, 196, 126))
+            self.screen.blit(rank, rank.get_rect(midleft=(panel.x + 42, y)))
+            self.screen.blit(player, player.get_rect(midleft=(panel.x + 96, y)))
+            self.screen.blit(points, points.get_rect(midright=(panel.right - 44, y)))
+
+        draw_menu_button(self.screen, self.small_font, self.back_button(), "BACK", (255, 185, 64))
 
     def draw_maze(self):
         rect = self.maze_rect()
@@ -425,6 +655,19 @@ class Game:
         text = self.font.render(self.message, True, WHITE)
         self.screen.blit(text, text.get_rect(center=rect.center))
 
+    def draw_pause_overlay(self):
+        overlay = pygame.Surface(SCREEN_SIZE, pygame.SRCALPHA)
+        overlay.fill((40, 30, 60, 175))
+        self.screen.blit(overlay, (0, 0))
+
+        title = self.title_font.render("Paused", True, WHITE)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_SIZE[0] // 2, 220)))
+
+        labels = {"new_game": "NEW GAME", "cancel": "CANCEL", "exit": "EXIT"}
+        colors = {"new_game": (82, 196, 126), "cancel": (255, 185, 64), "exit": (255, 111, 145)}
+        for key, rect in self.pause_buttons().items():
+            draw_menu_button(self.screen, self.font, rect, labels[key], colors[key])
+
     def draw_dragging(self):
         if not self.dragging:
             return
@@ -443,6 +686,31 @@ def draw_star(surface, center, radius, color):
         points.append((center[0] + math.cos(angle) * r, center[1] + math.sin(angle) * r))
     pygame.draw.polygon(surface, color, points)
     pygame.draw.polygon(surface, (255, 255, 255), points, width=2)
+
+
+def draw_menu_button(surface, font, rect, label, color):
+    draw_round_rect(surface, rect, color, radius=28, border=6, border_color=WHITE)
+    text = font.render(label, True, WHITE)
+    surface.blit(text, text.get_rect(center=rect.center))
+
+
+def load_high_scores():
+    if not SCORE_FILE.exists():
+        return {}
+    try:
+        with SCORE_FILE.open("r", encoding="utf-8") as file:
+            data = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {str(name)[:14]: int(score) for name, score in data.items() if isinstance(score, int) and score >= 0}
+
+
+def save_high_scores(scores):
+    ordered = dict(sorted(scores.items(), key=lambda item: (-item[1], item[0].lower())))
+    with SCORE_FILE.open("w", encoding="utf-8") as file:
+        json.dump(ordered, file, indent=2)
 
 
 def blit_fit(surface, image, rect):
