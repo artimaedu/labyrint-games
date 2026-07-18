@@ -19,7 +19,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from levels import LEVELS
-from maze import build_path, solution
+from maze import build_path, random_path, solution
 from ui import ARROW_COLORS, Button, answer_slot_rects, draw_arrow, draw_round_rect
 
 
@@ -38,7 +38,7 @@ DIRECTION_KEYS = {
 BG = (167, 224, 255)
 PANEL = (255, 247, 212)
 CORRIDOR = (255, 236, 128)
-WALL = (116, 198, 157)
+WALL = (100, 175, 140)
 GRID_LINE = (80, 171, 132)
 PURPLE = (92, 69, 142)
 WHITE = (255, 255, 255)
@@ -132,7 +132,9 @@ class Game:
 
     def load_level(self, index):
         self.level_index = index % len(LEVELS)
-        self.level = LEVELS[self.level_index]
+        template = LEVELS[self.level_index]
+        start, path = random_path(template["grid"], len(template["path"]))
+        self.level = {**template, "start": start, "path": path}
         self.path_cells = build_path(self.level)
         self.correct_answer = solution(self.level)
         self.answer = []

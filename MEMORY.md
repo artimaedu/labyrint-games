@@ -49,6 +49,9 @@ python main.py
 - Window is resizable and attempts to maximize.
 - `F11` toggles fullscreen; `Esc` exits fullscreen.
 - Keyboard shortcuts during a level: arrow keys place directions, `Backspace`/`Delete` undoes the last arrow, `Esc` opens a pause menu (`NEW GAME` / `CANCEL` / `EXIT`).
+- Each level's maze path is randomly generated on load (`maze.random_path`): `levels.py` now only supplies the band/grid/move-count "shape" per level, and the actual start cell + direction sequence are freshly randomized (self-avoiding, in-bounds) every time that level loads.
+- Paths are guaranteed non-tangent: no two non-consecutive cells share an edge, so the corridor is always visually unambiguous. The treasure is never adjacent to the start cell, preventing shortcuts.
+- Maze walls are rendered as solid brick-pattern blocks (no rounded corners), with thick dark borders facing corridor cells. The path corridor is a flat open floor between walls.
 - Works on Windows and should run on Linux with Python 3 and Pygame.
 
 ## Asset Notes

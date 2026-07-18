@@ -93,6 +93,11 @@ The whole sequence is split into three difficulty bands:
 - Maze levels should be defined in simple data structures (e.g. a list of dicts
   with grid size, start position, path directions, asset filenames) so new
   levels can be added without touching game logic.
+- The actual start cell and direction sequence should be randomly generated
+  each time a level loads (self-avoiding walk, staying inside the grid), using
+  each level entry only as a "shape" template (band, grid size, move count).
+  This keeps the maze different on every playthrough while preserving the
+  intended difficulty per level.
 - Include enough example levels to demonstrate the full progression: a few
   Beginner, a few Intermediate, a few Hard.
 - Target resolution should work well on a tablet-sized screen (e.g. 1024x768)

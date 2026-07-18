@@ -19,24 +19,53 @@ def draw_arrow(surface, rect, direction, color=None):
     color = color or ARROW_COLORS[direction]
     cx, cy = rect.center
     size = min(rect.width, rect.height)
-    shaft = max(8, size // 7)
-    head = size // 3
-    length = size // 2
+    half = size // 2
+    shaft = max(6, size // 5)
+    head = max(10, size // 3)
 
     if direction == "U":
-        pygame.draw.rect(surface, color, (cx - shaft // 2, cy - length // 5, shaft, length // 2), border_radius=5)
-        points = [(cx, cy - length // 2), (cx - head, cy - 3), (cx + head, cy - 3)]
+        pts = [
+            (cx, cy - half),
+            (cx + head, cy - half + head),
+            (cx + shaft, cy - half + head),
+            (cx + shaft, cy + half),
+            (cx - shaft, cy + half),
+            (cx - shaft, cy - half + head),
+            (cx - head, cy - half + head),
+        ]
     elif direction == "D":
-        pygame.draw.rect(surface, color, (cx - shaft // 2, cy - length // 3, shaft, length // 2), border_radius=5)
-        points = [(cx, cy + length // 2), (cx - head, cy + 3), (cx + head, cy + 3)]
+        pts = [
+            (cx, cy + half),
+            (cx + head, cy + half - head),
+            (cx + shaft, cy + half - head),
+            (cx + shaft, cy - half),
+            (cx - shaft, cy - half),
+            (cx - shaft, cy + half - head),
+            (cx - head, cy + half - head),
+        ]
     elif direction == "L":
-        pygame.draw.rect(surface, color, (cx - length // 5, cy - shaft // 2, length // 2, shaft), border_radius=5)
-        points = [(cx - length // 2, cy), (cx - 3, cy - head), (cx - 3, cy + head)]
+        pts = [
+            (cx - half, cy),
+            (cx - half + head, cy - head),
+            (cx - half + head, cy - shaft),
+            (cx + half, cy - shaft),
+            (cx + half, cy + shaft),
+            (cx - half + head, cy + shaft),
+            (cx - half + head, cy + head),
+        ]
     else:
-        pygame.draw.rect(surface, color, (cx - length // 3, cy - shaft // 2, length // 2, shaft), border_radius=5)
-        points = [(cx + length // 2, cy), (cx + 3, cy - head), (cx + 3, cy + head)]
+        pts = [
+            (cx + half, cy),
+            (cx + half - head, cy - head),
+            (cx + half - head, cy - shaft),
+            (cx - half, cy - shaft),
+            (cx - half, cy + shaft),
+            (cx + half - head, cy + shaft),
+            (cx + half - head, cy + head),
+        ]
 
-    pygame.draw.polygon(surface, color, points)
+    pygame.draw.polygon(surface, color, pts)
+    pygame.draw.polygon(surface, (255, 255, 255), pts, max(1, size // 36))
 
 
 class Button:
@@ -50,19 +79,24 @@ class Button:
         if self.kind in ("U", "D", "L", "R"):
             draw_arrow(surface, self.rect.inflate(-18, -18), self.kind)
         elif self.kind == "refresh":
-            x, y, w, h = self.rect.inflate(-24, -24)
-            eraser = pygame.Rect(x + 4, y + 15, w - 8, h - 8)
-            pygame.draw.rect(surface, (255, 143, 171), eraser, border_radius=8)
-            pygame.draw.polygon(
-                surface,
-                (255, 255, 255),
-                [(eraser.left + 12, eraser.top), (eraser.right, eraser.top), (eraser.right - 12, eraser.bottom), (eraser.left, eraser.bottom)],
-            )
-            pygame.draw.line(surface, (92, 69, 142), (eraser.left + 14, eraser.bottom), (eraser.right - 14, eraser.bottom), 4)
-            pygame.draw.circle(surface, (92, 69, 142), (x + 9, y + 7), 3)
-            pygame.draw.line(surface, (92, 69, 142), (x + 9, y + 1), (x + 9, y + 13), 2)
-            pygame.draw.line(surface, (92, 69, 142), (x + 3, y + 7), (x + 15, y + 7), 2)
-            pygame.draw.circle(surface, (255, 255, 255), (x + w - 2, y + 9), 4)
+            cx, cy = self.rect.center
+            radius = min(self.rect.width, self.rect.height) // 2 - 10
+            color = (92, 69, 142)
+            arc_rect = pygame.Rect(cx - radius, cy - radius, radius * 2, radius * 2)
+            pygame.draw.arc(surface, color, arc_rect, 0.8, 5.0, 7)
+            arrow_size = max(8, radius // 2)
+            ax = cx + int(radius * 0.70)
+            ay = cy - int(radius * 0.70)
+            pygame.draw.polygon(surface, color, [
+                (ax + arrow_size, ay),
+                (ax, ay - arrow_size),
+                (ax, ay + arrow_size),
+            ])
+            pygame.draw.polygon(surface, (255, 255, 255), [
+                (ax + arrow_size, ay),
+                (ax, ay - arrow_size),
+                (ax, ay + arrow_size),
+            ], 2)
         elif self.kind == "undo":
             center = self.rect.center
             pygame.draw.line(surface, (92, 69, 142), (center[0] + 22, center[1]), (center[0] - 18, center[1]), 9)

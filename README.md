@@ -103,12 +103,14 @@ Scores are saved locally in `high_scores.json`. This file is ignored by Git beca
 
 ## Add Or Reorder Levels
 
-Levels are defined in `levels.py`. Each level has:
+Levels are defined in `levels.py`. Each entry is a template, not a fixed maze:
 
 - `band`: `Beginner`, `Intermediate`, or `Hard`
 - `grid`: grid size as `(columns, rows)`
-- `start`: starting cell as `(column, row)`
-- `path`: ordered moves using `U`, `D`, `L`, and `R`
+- `start`: only used to determine the template's move count; the actual start
+  cell is randomized at load time (see below)
+- `path`: only its length matters; the actual directions are randomized at
+  load time
 
 Example:
 
@@ -116,4 +118,15 @@ Example:
 {"band": "Beginner", "grid": (4, 4), "start": (0, 1), "path": "RRD"}
 ```
 
-To reorder levels, reorder the `LEVELS` list. The game uses simple linear progression.
+This template means: a Beginner-band, 4x4 level with a 3-move path. Every time
+this level loads, `maze.random_path()` picks a fresh random start cell and a
+fresh random self-avoiding sequence of 3 moves that stays inside the grid, so
+the maze is different each time you play.
+
+Maze walls are rendered as solid brick-pattern blocks (no rounded corners), with
+thick dark borders on every wall edge that faces the corridor. The path between
+walls is drawn as a flat open floor.
+
+To reorder levels or change difficulty, edit the `grid` size and the length of
+`path` in `levels.py`. The game uses simple linear progression through the
+`LEVELS` list.
