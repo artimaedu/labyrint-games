@@ -22,9 +22,14 @@ htmlcov/
 build/
 dist/
 *.egg-info/
+*.spec
 
 # Local player data
 high_scores.json
+
+# Generated audio (rebuilt automatically on first run)
+assets/win_level.wav
+assets/win_all.wav
 
 # OS and editor files
 .DS_Store

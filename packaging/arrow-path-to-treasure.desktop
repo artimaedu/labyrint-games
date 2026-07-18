@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Arrow Path to Treasure
+Comment=Kid-friendly maze arrow puzzle game
+Exec=arrow-path-to-treasure
+Icon=arrow-path-to-treasure
+Categories=Game;LogicGame;Education;
+Terminal=false
+StartupNotify=false

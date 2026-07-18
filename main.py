@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import random
 import struct
 import sys
@@ -28,8 +29,30 @@ from ui import ARROW_COLORS, Button, answer_slot_rects, draw_arrow, draw_round_r
 SCREEN_SIZE = (1024, 768)
 FPS = 60
 SAMPLE_RATE = 44100
-ASSET_DIR = Path(__file__).parent / "assets"
-SCORE_FILE = Path(__file__).parent / "high_scores.json"
+
+
+def resource_dir():
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
+    return Path(__file__).parent
+
+
+def data_dir():
+    if not getattr(sys, "frozen", False):
+        return Path(__file__).parent
+    if sys.platform == "win32":
+        base = Path(os.environ.get("APPDATA", Path.home()))
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
+    path = base / "arrow-path-to-treasure"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+ASSET_DIR = resource_dir() / "assets"
+SCORE_FILE = data_dir() / "high_scores.json"
 
 DIRECTION_KEYS = {
     pygame.K_UP: "U",
