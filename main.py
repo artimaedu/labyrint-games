@@ -3,7 +3,9 @@ from __future__ import annotations
 import json
 import math
 import random
+import struct
 import sys
+import wave
 from pathlib import Path
 
 try:
@@ -25,6 +27,7 @@ from ui import ARROW_COLORS, Button, answer_slot_rects, draw_arrow, draw_round_r
 
 SCREEN_SIZE = (1024, 768)
 FPS = 60
+SAMPLE_RATE = 44100
 ASSET_DIR = Path(__file__).parent / "assets"
 SCORE_FILE = Path(__file__).parent / "high_scores.json"
 
@@ -93,8 +96,73 @@ def draw_asset_arrow(surface, direction):
     draw_arrow(surface, surface.get_rect().inflate(-28, -28), direction)
 
 
+def make_sound_files():
+    ASSET_DIR.mkdir(exist_ok=True)
+    needed = {
+        "win_level.wav": level_win_samples,
+        "win_all.wav": all_win_samples,
+    }
+    for filename, sampler in needed.items():
+        path = ASSET_DIR / filename
+        if path.exists():
+            continue
+        write_wav(path, sampler())
+
+
+def tone(freq, seconds, volume=0.4):
+    count = int(SAMPLE_RATE * seconds)
+    samples = []
+    for i in range(count):
+        t = i / SAMPLE_RATE
+        attack = min(1.0, t / 0.008)
+        release = min(1.0, (seconds - t) / 0.03)
+        envelope = attack * release * math.exp(-3.5 * t)
+        value = math.sin(2 * math.pi * freq * t) + 0.35 * math.sin(4 * math.pi * freq * t)
+        samples.append(value * envelope * volume)
+    return samples
+
+
+def chord(freqs, seconds):
+    notes = [tone(freq, seconds, 0.16) for freq in freqs]
+    return [sum(values) for values in zip(*notes)]
+
+
+def level_win_samples():
+    samples = []
+    for freq in (523.25, 659.25, 783.99, 1046.50):
+        samples += tone(freq, 0.15)
+    return samples
+
+
+def all_win_samples():
+    samples = []
+    for freq, seconds in (
+        (392.00, 0.16),
+        (523.25, 0.16),
+        (659.25, 0.16),
+        (783.99, 0.30),
+        (659.25, 0.16),
+        (783.99, 0.16),
+    ):
+        samples += tone(freq, seconds)
+    samples += chord((523.25, 659.25, 783.99, 1046.50), 1.0)
+    return samples
+
+
+def write_wav(path, samples):
+    frames = b"".join(
+        struct.pack("<h", max(-32767, min(32767, int(sample * 32767)))) for sample in samples
+    )
+    with wave.open(str(path), "wb") as file:
+        file.setnchannels(1)
+        file.setsampwidth(2)
+        file.setframerate(SAMPLE_RATE)
+        file.writeframes(frames)
+
+
 class Game:
     def __init__(self):
+        pygame.mixer.pre_init(SAMPLE_RATE, -16, 2, 512)
         pygame.init()
         pygame.display.set_caption("Arrow Path to Treasure")
         self.window = pygame.display.set_mode(SCREEN_SIZE, pygame.RESIZABLE)
@@ -110,6 +178,7 @@ class Game:
         make_asset_files()
         self.character = pygame.image.load(ASSET_DIR / "character.png").convert_alpha()
         self.treasure = pygame.image.load(ASSET_DIR / "treasure.png").convert_alpha()
+        self.sounds = self.load_sounds()
 
         self.level_index = 0
         self.answer = []
@@ -129,6 +198,23 @@ class Game:
         self.high_scores = load_high_scores()
         self.load_level(0)
         self.maximize_window()
+
+    def load_sounds(self):
+        if not pygame.mixer.get_init():
+            return {}
+        try:
+            make_sound_files()
+            return {
+                "win_level": pygame.mixer.Sound(str(ASSET_DIR / "win_level.wav")),
+                "win_all": pygame.mixer.Sound(str(ASSET_DIR / "win_all.wav")),
+            }
+        except (pygame.error, OSError):
+            return {}
+
+    def play_sound(self, name):
+        sound = self.sounds.get(name)
+        if sound and self.sound_on:
+            sound.play()
 
     def load_level(self, index):
         self.level_index = index % len(LEVELS)
@@ -203,6 +289,9 @@ class Game:
             return
         if self.state == "pause":
             self.handle_pause_event(event)
+            return
+        if self.state == "winner":
+            self.handle_winner_event(event)
             return
 
         if self.celebrating:
@@ -321,6 +410,20 @@ class Game:
                 pygame.quit()
                 sys.exit()
 
+    def handle_winner_event(self, event):
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            self.state = "menu"
+            return
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            pos = event.pos
+            buttons = self.winner_buttons()
+            if buttons["play_again"].collidepoint(pos):
+                self.start_new_game()
+            elif buttons["high_score"].collidepoint(pos):
+                self.state = "scores"
+            elif buttons["menu"].collidepoint(pos):
+                self.state = "menu"
+
     def save_player_name(self):
         name = self.name_input.strip() or "Player"
         self.current_player = name[:14]
@@ -366,11 +469,15 @@ class Game:
         self.walk_cells = list(self.path_cells)
         self.completed_this_run = max(self.completed_this_run, self.level_index + 1)
         self.record_score(self.completed_this_run)
-        self.confetti = [
+        self.confetti = self.make_confetti()
+        self.play_sound("win_level")
+        self.flash_message("Great!", 2.0)
+
+    def make_confetti(self):
+        return [
             [random.randint(40, SCREEN_SIZE[0] - 40), random.randint(-260, -20), random.choice(list(ARROW_COLORS.values())), random.uniform(110, 220)]
             for _ in range(130)
         ]
-        self.flash_message("Great!", 2.0)
 
     def update(self, dt):
         now = pygame.time.get_ticks()
@@ -382,10 +489,18 @@ class Game:
             if now - self.celebration_start > 2400:
                 if self.level_index + 1 >= len(LEVELS):
                     self.celebrating = False
-                    self.state = "scores"
+                    self.state = "winner"
                     self.message = ""
+                    self.confetti = self.make_confetti()
+                    self.play_sound("win_all")
                 else:
                     self.load_level(self.level_index + 1)
+        elif self.state == "winner":
+            for bit in self.confetti:
+                bit[1] += bit[3] * dt
+                if bit[1] > SCREEN_SIZE[1] + 20:
+                    bit[0] = random.randint(40, SCREEN_SIZE[0] - 40)
+                    bit[1] = random.randint(-160, -20)
 
     def maze_rect(self):
         return pygame.Rect(84, 92, 560, 430)
@@ -449,6 +564,13 @@ class Game:
             "exit": pygame.Rect(332, 484, 360, 72),
         }
 
+    def winner_buttons(self):
+        return {
+            "play_again": pygame.Rect(332, 476, 360, 72),
+            "high_score": pygame.Rect(332, 566, 360, 72),
+            "menu": pygame.Rect(332, 656, 360, 72),
+        }
+
     def name_buttons(self):
         return {
             "start": pygame.Rect(344, 478, 336, 74),
@@ -476,6 +598,8 @@ class Game:
             self.draw_name_screen()
         elif self.state == "scores":
             self.draw_high_scores()
+        elif self.state == "winner":
+            self.draw_winner_screen()
         else:
             self.draw_menu()
         self.present()
@@ -578,6 +702,35 @@ class Game:
 
         draw_menu_button(self.screen, self.small_font, self.back_button(), "BACK", (255, 185, 64))
 
+    def draw_winner_screen(self):
+        title = self.title_font.render("You Win!", True, PURPLE)
+        self.screen.blit(title, title.get_rect(center=(SCREEN_SIZE[0] // 2, 138)))
+        subtitle = self.font.render("All levels complete!", True, (255, 111, 145))
+        self.screen.blit(subtitle, subtitle.get_rect(center=(SCREEN_SIZE[0] // 2, 200)))
+
+        star_count = len(LEVELS)
+        gap = 44
+        start_x = SCREEN_SIZE[0] // 2 - (star_count - 1) * gap // 2
+        for index in range(star_count):
+            draw_star(self.screen, (start_x + index * gap, 262), 17, (255, 185, 64))
+
+        score = self.small_font.render(
+            f"{self.current_player}: {len(LEVELS)}/{len(LEVELS)} levels", True, PURPLE
+        )
+        self.screen.blit(score, score.get_rect(center=(SCREEN_SIZE[0] // 2, 322)))
+
+        kid_rect = pygame.Rect(112, 380, 160, 250)
+        treasure_rect = pygame.Rect(742, 410, 180, 150)
+        blit_fit(self.screen, self.character, kid_rect)
+        blit_fit(self.screen, self.treasure, treasure_rect)
+
+        labels = {"play_again": "PLAY AGAIN", "high_score": "HIGH SCORE", "menu": "MENU"}
+        colors = {"play_again": (82, 196, 126), "high_score": (91, 141, 239), "menu": (255, 185, 64)}
+        for key, rect in self.winner_buttons().items():
+            draw_menu_button(self.screen, self.font, rect, labels[key], colors[key])
+
+        self.draw_confetti()
+
     def draw_maze(self):
         rect = self.maze_rect()
         draw_round_rect(self.screen, rect, PANEL, radius=32, border=6, border_color=WHITE)
@@ -644,7 +797,7 @@ class Game:
         self.go_button().draw(self.screen, self.font)
 
     def draw_confetti(self):
-        if not self.celebrating:
+        if not self.celebrating and self.state != "winner":
             return
         for x, y, color, _speed in self.confetti:
             pygame.draw.rect(self.screen, color, (x, y, 9, 13), border_radius=3)

@@ -44,7 +44,9 @@ python main.py
 - Undo button removes the last arrow.
 - Eraser button clears all input.
 - `GO` checks the answer.
-- Correct answer triggers character movement, `Great!` message, and confetti.
+- Correct answer triggers character movement, `Great!` message, confetti, and a short win jingle.
+- Finishing the last level shows a `You Win!` splash screen (stars, player score, looping confetti, `PLAY AGAIN` / `HIGH SCORE` / `MENU` buttons) and plays a longer victory fanfare.
+- The in-game sound button mutes/unmutes the win sounds.
 - Incorrect answer gives a gentle retry message.
 - Window is resizable and attempts to maximize.
 - `F11` toggles fullscreen; `Esc` exits fullscreen.
@@ -58,6 +60,7 @@ python main.py
 
 - `assets/source/kid.jpg` and `assets/source/treasure.png` are the original downloaded sources.
 - `assets/character.png` and `assets/treasure.png` are cleaned transparent runtime images.
+- `assets/win_level.wav` and `assets/win_all.wav` are chiptune-style jingles generated procedurally by `main.py` on first run (delete them to regenerate).
 - Rebuild cleaned images with:
 
 ```bash
